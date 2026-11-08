@@ -1,0 +1,5 @@
+package cn.kitchenjournal.app;
+
+import com.getcapacitor.BridgeActivity;
+
+public class MainActivity extends BridgeActivity {}

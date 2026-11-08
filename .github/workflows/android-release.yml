@@ -1,0 +1,107 @@
+name: Android Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install and verify web
+        run: |
+          npm ci
+          node scripts/assert-version.mjs
+          npm test
+          npm run build
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
+      - name: Add or sync Capacitor Android
+        run: |
+          if [ ! -d android ]; then
+            npx cap add android
+          fi
+          node scripts/prepare-android-version.mjs
+          npx cap sync android
+
+      - name: Decode release keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "ANDROID_KEYSTORE_BASE64 is missing. Cannot sign a release APK."
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+
+      - name: Assemble signed release APK
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_PASSWORD" ] || [ -z "$ANDROID_KEY_ALIAS" ] || [ -z "$ANDROID_KEY_PASSWORD" ]; then
+            echo "Release signing secrets are incomplete."
+            exit 1
+          fi
+          cd android
+          ./gradlew :app:assembleRelease \
+            -Pandroid.injected.signing.store.file="$RUNNER_TEMP/release.jks" \
+            -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"
+
+      - name: Stage APK and version.json
+        run: |
+          mkdir -p dist-android
+          VERSION_NAME=$(node -p "require('./src/app-version.json').versionName")
+          VERSION_CODE=$(node -p "require('./src/app-version.json').versionCode")
+          SRC=$(ls android/app/build/outputs/apk/release/*.apk | head -n 1)
+          DEST="dist-android/kitchen-journal-${VERSION_NAME}.apk"
+          cp "$SRC" "$DEST"
+          node -e "const fs=require('fs'); const m=require('./src/app-version.json'); fs.writeFileSync('dist-android/version.json', JSON.stringify({ versionName: m.versionName, versionCode: m.versionCode, apkFile: 'kitchen-journal-'+m.versionName+'.apk' }, null, 2)+'\n')"
+          echo "Staged $DEST (versionCode $VERSION_CODE)"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kitchen-journal-apk
+          path: |
+            dist-android/*.apk
+            dist-android/version.json
+          if-no-files-found: error
+
+      - name: Publish GitHub Release on this repo
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          DIST_TAG: ${{ github.ref_name }}
+        run: |
+          VERSION_NAME=$(node -p "require('./src/app-version.json').versionName")
+          export DIST_APK_PATH="dist-android/kitchen-journal-${VERSION_NAME}.apk"
+          export DIST_VERSION_JSON_PATH="dist-android/version.json"
+          node scripts/publish-distribution.mjs
