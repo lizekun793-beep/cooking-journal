@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">做菜手帐</string>
+    <string name="title_activity_main">做菜手帐</string>
+    <string name="package_name">cn.kitchenjournal.app</string>
+    <string name="custom_url_scheme">cn.kitchenjournal.app</string>
+</resources>
