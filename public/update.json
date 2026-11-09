@@ -1,8 +1,8 @@
 {
-  "versionName": "1.0.2",
-  "versionCode": 3,
-  "apkFile": "kitchen-journal-1.0.2.apk",
-  "apkUrl": "https://github.com/lizekun793-beep/cooking-journal/releases/download/v1.0.2/kitchen-journal-1.0.2.apk",
-  "htmlUrl": "https://github.com/lizekun793-beep/cooking-journal/releases/tag/v1.0.2",
-  "notes": "修复国内网络下检查更新失败：GitHub 不可达时自动改用备用更新地址。"
+  "versionName": "1.0.3",
+  "versionCode": 4,
+  "apkFile": "kitchen-journal-1.0.3.apk",
+  "apkUrl": "https://github.com/lizekun793-beep/cooking-journal/releases/download/v1.0.3/kitchen-journal-1.0.3.apk",
+  "htmlUrl": "https://github.com/lizekun793-beep/cooking-journal/releases/tag/v1.0.3",
+  "notes": "桌面图标换成「菜」字印章（与网页 favicon 同套）；其余同 1.0.2。"
 }
