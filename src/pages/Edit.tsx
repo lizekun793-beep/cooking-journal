@@ -200,7 +200,7 @@ function EditForm({ id }: { id: string | undefined }) {
           />
         </div>
 
-        <div className="label">实拍</div>
+        <div className="label">实拍贴贴</div>
         <div className="photos">
           <button type="button" className="add-photo" onClick={() => fileRef.current?.click()}>
             <div className="plus">+</div>

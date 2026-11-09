@@ -32,7 +32,7 @@ export interface Recipe {
   updatedAt: string
 }
 
-export type FilterKey = 'recent' | 'signature' | 'retry' | 'shared'
+export type FilterKey = 'recent' | 'signature' | 'retry' | 'loved'
 
 export const PRESET_TAGS: InkTag[] = [
   { label: '成功', kind: 'ok' },
@@ -44,8 +44,16 @@ export const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'recent', label: '最近' },
   { key: 'signature', label: '拿手菜' },
   { key: 'retry', label: '待复刻' },
-  { key: 'shared', label: '分享过' },
+  { key: 'loved', label: '已收藏' },
 ]
+
+export function matchesFilter(r: Recipe, filter: FilterKey): boolean {
+  if (r.isDraft) return false
+  if (filter === 'recent') return true
+  if (filter === 'signature') return r.isSignature || r.tags.some((t) => t.label === '拿手')
+  if (filter === 'retry') return r.toRetry || r.tags.some((t) => t.label === '待复刻')
+  return r.loved
+}
 
 /** Public asset URL that respects Vite `base` (e.g. GitHub Pages subpath). */
 export function publicUrl(path: string): string {

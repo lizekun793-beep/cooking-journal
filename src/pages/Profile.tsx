@@ -18,7 +18,7 @@ import { readImageAsDataUrl } from '../lib/images'
 import { COPY } from '../lib/updates/presentation'
 import { BG_DEFAULT, BG_MALE, resolveBgSrc, type Recipe } from '../types'
 
-type SheetKey = 'signature' | 'retry' | 'shared' | 'tags' | 'update'
+type SheetKey = 'signature' | 'retry' | 'loved' | 'tags' | 'update'
 
 function isSignature(r: Recipe): boolean {
   return r.isSignature || r.tags.some((t) => t.label === '拿手')
@@ -125,7 +125,7 @@ export function Profile() {
   const published = useMemo(() => recipes.filter((r) => !r.isDraft), [recipes])
   const signature = useMemo(() => published.filter(isSignature), [published])
   const retry = useMemo(() => published.filter(isRetry), [published])
-  const shared = useMemo(() => published.filter((r) => r.shared), [published])
+  const loved = useMemo(() => published.filter((r) => r.loved), [published])
   const weekCount = useMemo(
     () => published.filter((r) => isThisWeek(r.cookedAt)).length,
     [published],
@@ -267,9 +267,9 @@ export function Profile() {
     sheetTitle = '待复刻'
     sheetDishes = retry.filter((r) => matchesQuery(r, query))
     sheetCount = `${sheetDishes.length} 道`
-  } else if (sheet === 'shared') {
-    sheetTitle = '分享过'
-    sheetDishes = shared.filter((r) => matchesQuery(r, query))
+  } else if (sheet === 'loved') {
+    sheetTitle = '已收藏'
+    sheetDishes = loved.filter((r) => matchesQuery(r, query))
     sheetCount = `${sheetDishes.length} 道`
   } else if (sheet === 'tags' && tagFilter) {
     sheetTitle = tagFilter
@@ -378,7 +378,7 @@ export function Profile() {
                   key={label}
                   onClick={() => setTagFilter(label)}
                 >
-                  <div className="ico d">🏷</div>
+                  <div className="ico tags">🏷</div>
                   <div className="txt">
                     <h4>
                       {label}
@@ -477,18 +477,26 @@ export function Profile() {
 
         <div className="sec-title">本周手帐</div>
         <div className="stats">
-          <div className="stat">
+          <div className="stat all">
             <b>{published.length}</b>
             <span>全部菜谱</span>
           </div>
-          <div className="stat">
+          <button
+            type="button"
+            className="stat sig"
+            onClick={() => openSheet('signature')}
+          >
             <b>{signature.length}</b>
             <span>拿手菜</span>
-          </div>
-          <div className="stat">
-            <b>{retry.length}</b>
-            <span>待复刻</span>
-          </div>
+          </button>
+          <button
+            type="button"
+            className="stat loved"
+            onClick={() => openSheet('loved')}
+          >
+            <b>{loved.length}</b>
+            <span>已收藏</span>
+          </button>
         </div>
 
         <div className="sec-title">整理与筛选</div>
@@ -512,7 +520,7 @@ export function Profile() {
             className={`row ${sheet === 'signature' ? 'active-row' : ''}`}
             onClick={() => openSheet('signature')}
           >
-            <div className="ico a">★</div>
+            <div className="ico sig">★</div>
             <div className="txt">
               <h4>
                 拿手菜
@@ -527,7 +535,7 @@ export function Profile() {
             className={`row ${sheet === 'retry' ? 'active-row' : ''}`}
             onClick={() => openSheet('retry')}
           >
-            <div className="ico b">↻</div>
+            <div className="ico retry">↻</div>
             <div className="txt">
               <h4>
                 待复刻
@@ -539,16 +547,19 @@ export function Profile() {
           </button>
           <button
             type="button"
-            className={`row ${sheet === 'shared' ? 'active-row' : ''}`}
-            onClick={() => openSheet('shared')}
+            className={`row ${sheet === 'loved' ? 'active-row' : ''}`}
+            onClick={() => openSheet('loved')}
           >
-            <div className="ico c">↗</div>
+            <div className="ico loved">
+              ♥
+              <span className="stamp-heart">♥</span>
+            </div>
             <div className="txt">
               <h4>
-                分享过
-                <span className="pill">{shared.length}</span>
+                已收藏
+                <span className="pill loved-pill">{loved.length}</span>
               </h4>
-              <p>从详情发出去过的记录</p>
+              <p>你标了喜欢的</p>
             </div>
             <div className="chev">›</div>
           </button>
@@ -557,7 +568,7 @@ export function Profile() {
             className={`row ${sheet === 'tags' ? 'active-row' : ''}`}
             onClick={() => openSheet('tags')}
           >
-            <div className="ico d">🏷</div>
+            <div className="ico tags">🏷</div>
             <div className="txt">
               <h4>全部标签</h4>
               <p>成功 / 快手 / 踩坑… 管理墨水签</p>

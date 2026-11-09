@@ -3,20 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useJournal } from '../context/JournalContext'
 import { dateStamp, formatEntryMeta } from '../lib/dates'
 import { InkTag } from '../components/InkTag'
-import {
-  FILTERS,
-  resolveBgSrc,
-  type FilterKey,
-  type Recipe,
-} from '../types'
-
-function matchesFilter(r: Recipe, filter: FilterKey): boolean {
-  if (r.isDraft) return false
-  if (filter === 'recent') return true
-  if (filter === 'signature') return r.isSignature || r.tags.some((t) => t.label === '拿手')
-  if (filter === 'retry') return r.toRetry || r.tags.some((t) => t.label === '待复刻')
-  return r.shared
-}
+import { FILTERS, matchesFilter, resolveBgSrc, type FilterKey } from '../types'
 
 export function Home() {
   const { recipes, bg, customBgs } = useJournal()
@@ -70,7 +57,7 @@ export function Home() {
             <button
               key={f.key}
               type="button"
-              className={`sticky ${filter === f.key ? 'on' : ''}`}
+              className={`sticky ${f.key}${filter === f.key ? ' on' : ''}`}
               onClick={() => setFilter(f.key)}
             >
               {f.label}

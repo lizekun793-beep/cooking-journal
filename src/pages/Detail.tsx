@@ -77,6 +77,15 @@ export function Detail() {
               {t.label}
             </span>
           ))}
+          <button
+            type="button"
+            className={`loved-chip${recipe.loved ? ' on' : ''}`}
+            aria-pressed={recipe.loved}
+            aria-label={recipe.loved ? '取消收藏' : '收藏'}
+            onClick={() => upsert({ ...recipe, loved: !recipe.loved })}
+          >
+            {recipe.loved ? '♥ 已收藏' : '♡ 收藏'}
+          </button>
         </div>
 
         <div className="hand-h">做法</div>
@@ -115,6 +124,7 @@ export function Detail() {
               {recipe.photos.slice(0, 3).map((src, i) => (
                 <div className="shot" key={i}>
                   <img src={src} alt="" />
+                  <div className="cap">· 实拍 ·</div>
                 </div>
               ))}
             </div>
@@ -132,14 +142,6 @@ export function Detail() {
           }}
         >
           分享这道菜
-        </button>
-        <button
-          type="button"
-          className={`heart-stamp ${recipe.loved ? 'on' : ''}`}
-          aria-label="喜欢"
-          onClick={() => upsert({ ...recipe, loved: !recipe.loved })}
-        >
-          {recipe.loved ? '♥' : '♡'}
         </button>
       </div>
     </>

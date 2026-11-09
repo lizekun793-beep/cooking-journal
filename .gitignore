@@ -33,3 +33,6 @@ coverage
 *.pfx
 *.pem
 *.key
+
+# Local design preview refs (symlinks)
+_design_refs/
