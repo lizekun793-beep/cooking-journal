@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   LATEST_RELEASE_API,
   RELEASE_PAGE_LATEST,
+  UPDATE_MANIFEST_JSDELIVR,
+  UPDATE_MANIFEST_RAW,
   isAllowedReleasePageUrl,
   isAllowedReleaseUrl,
 } from './urls'
@@ -17,7 +19,7 @@ describe('release URL allowlist', () => {
   it('allows this repo download URLs and official asset hosts', () => {
     expect(
       isAllowedReleaseUrl(
-        'https://github.com/lizekun793-beep/cooking-journal/releases/download/v1.0.1/kitchen-journal-1.0.1.apk',
+        'https://github.com/lizekun793-beep/cooking-journal/releases/download/v1.0.2/kitchen-journal-1.0.2.apk',
       ),
     ).toBe(true)
     expect(
@@ -36,10 +38,26 @@ describe('release URL allowlist', () => {
     ).toBe(true)
   })
 
+  it('allows this repo update.json on jsDelivr and raw.githubusercontent.com', () => {
+    expect(UPDATE_MANIFEST_JSDELIVR).toBe(
+      'https://cdn.jsdelivr.net/gh/lizekun793-beep/cooking-journal@main/public/update.json',
+    )
+    expect(UPDATE_MANIFEST_RAW).toBe(
+      'https://raw.githubusercontent.com/lizekun793-beep/cooking-journal/main/public/update.json',
+    )
+    expect(isAllowedReleaseUrl(UPDATE_MANIFEST_JSDELIVR)).toBe(true)
+    expect(isAllowedReleaseUrl(UPDATE_MANIFEST_RAW)).toBe(true)
+    expect(
+      isAllowedReleaseUrl(
+        'https://fastly.jsdelivr.net/gh/lizekun793-beep/cooking-journal@main/public/update.json',
+      ),
+    ).toBe(true)
+  })
+
   it('allows html release pages for 查看发布页', () => {
     expect(isAllowedReleasePageUrl(RELEASE_PAGE_LATEST)).toBe(true)
     expect(
-      isAllowedReleasePageUrl('https://github.com/lizekun793-beep/cooking-journal/releases/tag/v1.0.1'),
+      isAllowedReleasePageUrl('https://github.com/lizekun793-beep/cooking-journal/releases/tag/v1.0.2'),
     ).toBe(true)
     expect(isAllowedReleasePageUrl('https://github.com/lizekun793-beep/cooking-journal/releases')).toBe(true)
   })
@@ -77,10 +95,38 @@ describe('release URL allowlist', () => {
     ).toBe(false)
   })
 
+  it('rejects foreign or non-manifest CDN paths', () => {
+    expect(
+      isAllowedReleaseUrl(
+        'https://cdn.jsdelivr.net/gh/other/cooking-journal@main/public/update.json',
+      ),
+    ).toBe(false)
+    expect(
+      isAllowedReleaseUrl(
+        'https://cdn.jsdelivr.net/gh/lizekun793-beep/cooking-journal@main/public/evil.apk',
+      ),
+    ).toBe(false)
+    expect(
+      isAllowedReleaseUrl(
+        'https://cdn.jsdelivr.net/gh/lizekun793-beep/cooking-journal@main/src/app-version.json',
+      ),
+    ).toBe(false)
+    expect(
+      isAllowedReleaseUrl(
+        'https://raw.githubusercontent.com/lizekun793-beep/cooking-journal/main/public/evil.apk',
+      ),
+    ).toBe(false)
+    expect(
+      isAllowedReleaseUrl(
+        'https://raw.githubusercontent.com/someone-else/cooking-journal/main/public/update.json',
+      ),
+    ).toBe(false)
+  })
+
   it('does not treat a release html page as an APK download URL', () => {
     expect(isAllowedReleaseUrl(RELEASE_PAGE_LATEST)).toBe(false)
     expect(
-      isAllowedReleaseUrl('https://github.com/lizekun793-beep/cooking-journal/releases/tag/v1.0.1'),
+      isAllowedReleaseUrl('https://github.com/lizekun793-beep/cooking-journal/releases/tag/v1.0.2'),
     ).toBe(false)
   })
 })

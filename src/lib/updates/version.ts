@@ -25,6 +25,8 @@ export type VersionJson = {
   versionCode: number
   apkFile?: string
   apkUrl?: string
+  htmlUrl?: string
+  notes?: string
 }
 
 export function parseVersionJson(input: unknown): { ok: true; data: VersionJson } | { ok: false; error: string } {
@@ -50,8 +52,17 @@ export function parseVersionJson(input: unknown): { ok: true; data: VersionJson 
   }
   const apkFile = typeof rec.apkFile === 'string' ? rec.apkFile : undefined
   const apkUrl = typeof rec.apkUrl === 'string' ? rec.apkUrl : undefined
+  const htmlUrl = typeof rec.htmlUrl === 'string' ? rec.htmlUrl : undefined
+  const notes = typeof rec.notes === 'string' ? rec.notes : undefined
   return {
     ok: true,
-    data: { versionName: versionName.trim(), versionCode, apkFile, apkUrl },
+    data: {
+      versionName: versionName.trim(),
+      versionCode,
+      apkFile,
+      apkUrl,
+      htmlUrl,
+      notes,
+    },
   }
 }

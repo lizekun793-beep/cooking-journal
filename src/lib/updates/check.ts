@@ -1,6 +1,13 @@
 import { defaultHttpGet, type HttpGet } from './http'
-import { LATEST_RELEASE_API, isAllowedReleasePageUrl, isAllowedReleaseUrl } from './urls'
-import { compareVersionCode, parseVersionJson } from './version'
+import {
+  LATEST_RELEASE_API,
+  UPDATE_MANIFEST_FALLBACKS,
+  isAllowedReleasePageUrl,
+  isAllowedReleaseUrl,
+  releaseDownloadUrl,
+  releaseTagPageUrl,
+} from './urls'
+import { compareVersionCode, parseVersionJson, type VersionJson } from './version'
 
 export const DEFAULT_CHECK_TIMEOUT_MS = 8000
 
@@ -31,6 +38,8 @@ type GithubRelease = {
   html_url?: string
   assets?: GithubAsset[]
 }
+
+type HttpGetResultLike = { status: number; body: string; url?: string }
 
 function pickAsset(assets: GithubAsset[], predicate: (name: string) => boolean): GithubAsset | undefined {
   return assets.find((a) => typeof a.name === 'string' && predicate(a.name))
@@ -80,29 +89,62 @@ function infoFrom(release: GithubRelease, version: ReleaseInfo): ReleaseInfo {
   }
 }
 
-export async function checkLatestRelease(opts: {
-  localVersionCode: number
-  httpGet?: HttpGet
-  timeoutMs?: number
-}): Promise<ReleaseCheck> {
-  const httpGet = opts.httpGet ?? defaultHttpGet
-  const timeoutMs = opts.timeoutMs ?? DEFAULT_CHECK_TIMEOUT_MS
+function resolveApkUrl(version: VersionJson): string | null {
+  if (version.apkUrl && isAllowedReleaseUrl(version.apkUrl)) return version.apkUrl
+  if (version.apkFile) {
+    const built = releaseDownloadUrl(version.versionName, version.apkFile)
+    return isAllowedReleaseUrl(built) ? built : null
+  }
+  return null
+}
 
+function releaseInfoFromManifest(version: VersionJson): ReleaseInfo {
+  return {
+    versionName: version.versionName,
+    versionCode: version.versionCode,
+    notes: readReleaseNotes(version.notes ?? null),
+    htmlUrl: allowedHtmlUrl(version.htmlUrl) ?? allowedHtmlUrl(releaseTagPageUrl(version.versionName)),
+    apkUrl: resolveApkUrl(version),
+  }
+}
+
+function compareToCheck(localVersionCode: number, info: ReleaseInfo): ReleaseCheck {
+  let cmp: ReturnType<typeof compareVersionCode>
+  try {
+    cmp = compareVersionCode(localVersionCode, info.versionCode)
+  } catch {
+    return { status: 'unavailable', reason: 'invalid-version-code' }
+  }
+  if (cmp === 'up-to-date' || cmp === 'local-newer') {
+    return { status: cmp, ...info }
+  }
+  return { status: 'update-available', ...info }
+}
+
+function classifyHttpError(err: unknown): ReleaseCheck {
+  const msg = err instanceof Error ? err.message : 'network'
+  if (msg === 'timeout') return { status: 'unavailable', reason: 'timeout' }
+  if (msg === 'blocked-url' || msg === 'blocked-redirect') {
+    return { status: 'unavailable', reason: msg }
+  }
+  return { status: 'unavailable', reason: 'network' }
+}
+
+async function checkViaGithubRelease(opts: {
+  localVersionCode: number
+  httpGet: HttpGet
+  timeoutMs: number
+}): Promise<ReleaseCheck> {
   let latest: HttpGetResultLike
   try {
-    latest = await httpGet(LATEST_RELEASE_API, {
-      timeoutMs,
+    latest = await opts.httpGet(LATEST_RELEASE_API, {
+      timeoutMs: opts.timeoutMs,
       headers: {
         Accept: 'application/vnd.github+json',
       },
     })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'network'
-    if (msg === 'timeout') return { status: 'unavailable', reason: 'timeout' }
-    if (msg === 'blocked-url' || msg === 'blocked-redirect') {
-      return { status: 'unavailable', reason: msg }
-    }
-    return { status: 'unavailable', reason: 'network' }
+    return classifyHttpError(err)
   }
 
   if (latest.status === 404) return { status: 'no-release' }
@@ -126,16 +168,14 @@ export async function checkLatestRelease(opts: {
 
   let versionRes: HttpGetResultLike
   try {
-    versionRes = await httpGet(versionUrl, {
-      timeoutMs,
+    versionRes = await opts.httpGet(versionUrl, {
+      timeoutMs: opts.timeoutMs,
       headers: {
         Accept: 'application/octet-stream, application/json',
       },
     })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'network'
-    if (msg === 'timeout') return { status: 'unavailable', reason: 'timeout' }
-    return { status: 'unavailable', reason: msg === 'blocked-url' || msg === 'blocked-redirect' ? msg : 'network' }
+    return classifyHttpError(err)
   }
 
   if (versionRes.status === 404) return { status: 'no-release' }
@@ -146,13 +186,6 @@ export async function checkLatestRelease(opts: {
   const parsed = parseVersionJson(versionRes.body)
   if (!parsed.ok) return { status: 'unavailable', reason: parsed.error }
 
-  let cmp: ReturnType<typeof compareVersionCode>
-  try {
-    cmp = compareVersionCode(opts.localVersionCode, parsed.data.versionCode)
-  } catch {
-    return { status: 'unavailable', reason: 'invalid-version-code' }
-  }
-
   const info: ReleaseInfo = {
     versionName: parsed.data.versionName,
     versionCode: parsed.data.versionCode,
@@ -161,11 +194,66 @@ export async function checkLatestRelease(opts: {
     apkUrl: apkUrlFrom(release, parsed.data),
   }
 
-  if (cmp === 'up-to-date' || cmp === 'local-newer') {
-    return { status: cmp, ...infoFrom(release, info) }
-  }
-
-  return { status: 'update-available', ...infoFrom(release, info) }
+  return compareToCheck(opts.localVersionCode, infoFrom(release, info))
 }
 
-type HttpGetResultLike = { status: number; body: string; url?: string }
+async function checkViaUpdateManifest(opts: {
+  localVersionCode: number
+  httpGet: HttpGet
+  timeoutMs: number
+  manifestUrl: string
+}): Promise<ReleaseCheck> {
+  let res: HttpGetResultLike
+  try {
+    res = await opts.httpGet(opts.manifestUrl, {
+      timeoutMs: opts.timeoutMs,
+      headers: {
+        Accept: 'application/json',
+      },
+    })
+  } catch (err) {
+    return classifyHttpError(err)
+  }
+
+  if (res.status === 404) return { status: 'no-release' }
+  if (res.status < 200 || res.status >= 300) {
+    return { status: 'unavailable', reason: `http-${res.status}` }
+  }
+
+  const parsed = parseVersionJson(res.body)
+  if (!parsed.ok) return { status: 'unavailable', reason: parsed.error }
+
+  return compareToCheck(opts.localVersionCode, releaseInfoFromManifest(parsed.data))
+}
+
+export async function checkLatestRelease(opts: {
+  localVersionCode: number
+  httpGet?: HttpGet
+  timeoutMs?: number
+  /** Override fallbacks in tests. Defaults to jsDelivr then raw.githubusercontent.com. */
+  manifestFallbacks?: readonly string[]
+}): Promise<ReleaseCheck> {
+  const httpGet = opts.httpGet ?? defaultHttpGet
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_CHECK_TIMEOUT_MS
+  const fallbacks = opts.manifestFallbacks ?? UPDATE_MANIFEST_FALLBACKS
+
+  const primary = await checkViaGithubRelease({
+    localVersionCode: opts.localVersionCode,
+    httpGet,
+    timeoutMs,
+  })
+  if (primary.status !== 'unavailable') return primary
+
+  let last: ReleaseCheck = primary
+  for (const manifestUrl of fallbacks) {
+    const next = await checkViaUpdateManifest({
+      localVersionCode: opts.localVersionCode,
+      httpGet,
+      timeoutMs,
+      manifestUrl,
+    })
+    if (next.status !== 'unavailable') return next
+    last = next
+  }
+  return last
+}

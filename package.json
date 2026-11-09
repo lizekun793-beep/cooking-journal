@@ -1,7 +1,7 @@
 {
   "name": "cooking-journal-app",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.2",
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5173",
@@ -12,7 +12,8 @@
     "version:assert": "node scripts/assert-version.mjs",
     "android:prepare-version": "node scripts/prepare-android-version.mjs",
     "android:build": "node scripts/android-build.mjs",
-    "cap:sync": "npm run build && npx cap sync android"
+    "cap:sync": "npm run build && npx cap sync android",
+    "version:sync-update": "node scripts/sync-update-json.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.0",

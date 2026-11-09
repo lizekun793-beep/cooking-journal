@@ -25,6 +25,7 @@ jobs:
       - name: Install and verify web
         run: |
           npm ci
+          node scripts/sync-update-json.mjs
           node scripts/assert-version.mjs
           npm test
           npm run build
@@ -84,6 +85,8 @@ jobs:
           DEST="dist-android/kitchen-journal-${VERSION_NAME}.apk"
           cp "$SRC" "$DEST"
           node -e "const fs=require('fs'); const m=require('./src/app-version.json'); fs.writeFileSync('dist-android/version.json', JSON.stringify({ versionName: m.versionName, versionCode: m.versionCode, apkFile: 'kitchen-journal-'+m.versionName+'.apk' }, null, 2)+'\n')"
+          node scripts/sync-update-json.mjs
+          cp public/update.json dist-android/update.json
           echo "Staged $DEST (versionCode $VERSION_CODE)"
 
       - name: Upload APK artifact
@@ -93,6 +96,7 @@ jobs:
           path: |
             dist-android/*.apk
             dist-android/version.json
+            dist-android/update.json
           if-no-files-found: error
 
       - name: Publish GitHub Release on this repo
